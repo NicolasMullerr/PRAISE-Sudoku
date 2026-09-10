@@ -1,6 +1,9 @@
 import sys
 import time
-import pygame
+try:
+    import pygame
+except ImportError:
+    pygame = None
 from renderers import IRenderer
 
 

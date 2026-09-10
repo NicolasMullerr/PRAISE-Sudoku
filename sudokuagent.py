@@ -39,7 +39,7 @@ class EstadoCeldaSensor(SimulatedSensor):
 class EscribirActuator(SimulatedActuator):
 
     def act(self, fila: int, columna: int, valor: int):
-        request_info = {"fila": fila, "columna": columna, "valor": valor}
+        request_info = {"fila": fila, "columna": columna, "numero": valor}
         self._env.take_action(self._agent.id, "escribir", request_info)
 
 class BorrarActuator(SimulatedActuator):
@@ -50,25 +50,123 @@ class BorrarActuator(SimulatedActuator):
 
 class ConfirmarActuator(SimulatedActuator):
     def act(self, fila: int, columna: int, valor: int):
-        request_info = {"fila": fila, "columna": columna, "numero": valor} # Ojo: en el entorno usas "numero"
+        request_info = {"fila": fila, "columna": columna, "numero": valor}
         self._env.take_action(self._agent.id, "confirmar", request_info)
 
 # Ahora definimos el agente del juego de Sudoku
 
 class SudokuAgent(Agent):
 
+    def _es_valido(self, tablero, fila, columna, numero):
+        """El agente simula en su cabeza si el número choca con algo en el tablero visible."""
+        # Revisar fila y columna
+        for i in range(9):
+            if tablero[fila][i] == numero or tablero[i][columna] == numero:
+                return False
+                
+        # Revisar región 3x3
+        f_reg, c_reg = (fila // 3) * 3, (columna // 3) * 3
+        for i in range(3):
+            for j in range(3):
+                if tablero[f_reg + i][c_reg + j] == numero:
+                    return False
+        return True
+
     def function(self, percept):
-        # Aquí se implementaría la lógica del agente para decidir qué acción tomar
+        tablero = percept["tablero_sensor"]
         action = {}
-        # Ejemplo de acción: escribir un valor en una celda
-        action["name"] = "escribir"
-        action["params"] = {"fila": 0, "columna": 0, "valor": 1}
-        return action
+
+        # PASO 1: Si dejamos una confirmación pendiente en el turno anterior, la ejecutamos
+        if self.accion_pendiente:
+            action = self.accion_pendiente
+            self.accion_pendiente = None
+            return action
+
+        # PASO 2: Si chocamos con un callejón sin salida y hay que retroceder (Backtracking)
+        if self.modo_retroceso:
+            if not self.historial_movimientos:
+                print("El tablero no tiene solución posible.")
+                action["name"] = "esperar" 
+                return action
+            
+            # Sacamos el último movimiento de la memoria
+            ultima_fila, ultima_col, ultimo_num = self.historial_movimientos.pop()
+            
+            # Si el número probado era menor a 9, intentaremos el siguiente número en esa celda
+            if ultimo_num < 9:
+                self.siguiente_numero_a_probar = ultimo_num + 1
+                self.celda_actual_retroceso = (ultima_fila, ultima_col)
+                self.modo_retroceso = False 
+            else:
+                # Si era 9, esa celda también se agotó; la borramos y seguimos retrocediendo
+                self.siguiente_numero_a_probar = 1
+                self.celda_actual_retroceso = None
+                self.modo_retroceso = True
+            
+            # Le pedimos al entorno que borre el número equivocado
+            action["name"] = "borrar"
+            action["params"] = {"fila": ultima_fila, "columna": ultima_col}
+            return action
+
+        # PASO 3: Buscar en qué celda vamos a trabajar
+        fila_objetivo, col_objetivo = -1, -1
+        
+        if self.celda_actual_retroceso:
+            # Si venimos de borrar, retomamos esa celda donde la dejamos
+            fila_objetivo, col_objetivo = self.celda_actual_retroceso
+            inicio_rango = self.siguiente_numero_a_probar
+            self.celda_actual_retroceso = None
+        else:
+            # Si no, buscamos la próxima celda vacía (0) en el tablero
+            inicio_rango = 1
+            for f in range(9):
+                for c in range(9):
+                    if tablero[f][c] == 0:
+                        fila_objetivo, col_objetivo = f, c
+                        break
+                if fila_objetivo != -1:
+                    break
+
+        # Si recorrimos todo el tablero y no hay ceros, ¡ganamos!
+        if fila_objetivo == -1:
+             print("\n¡El Agente ha resuelto el Sudoku exitosamente!")
+             action["name"] = "esperar" # Acción neutra
+             return action
+
+        # PASO 4: Pensar y actuar (Probar números válidos)
+        for numero in range(inicio_rango, 10):
+            if self._es_valido(tablero, fila_objetivo, col_objetivo, numero):
+                # Anotamos en memoria que vamos a probar este número
+                self.historial_movimientos.append((fila_objetivo, col_objetivo, numero))
+                
+                # Programamos la confirmación para el SIGUIENTE turno
+                self.accion_pendiente = {
+                    "name": "confirmar",
+                    "params": {"fila": fila_objetivo, "columna": col_objetivo, "valor": numero}
+                }
+                
+                # Y en ESTE turno mandamos a escribir en borrador
+                action["name"] = "escribir"
+                action["params"] = {"fila": fila_objetivo, "columna": col_objetivo, "valor": numero}
+                return action
+
+        # PASO 5: Si probamos del 1 al 9 y ninguno sirvió, entramos en modo retroceso
+        self.modo_retroceso = True
+        return self.function(percept)
 
     def __init__(self, env: SimulatedEnvironment):
         super().__init__()
         env.add(self.id)
 
+        # --- Variables de memoria para el Backtracking y la búsqueda de soluciones ---
+        
+        self.historial_movimientos = [] # Guardará tuplas: (fila, columna, numero_probado)
+        self.modo_retroceso = False     # Bandera para saber si estamos deshaciendo un camino sin salida
+        self.celda_actual_retroceso = None
+        self.siguiente_numero_a_probar = 1
+        self.accion_pendiente = None    # Para manejar el ciclo de 2 pasos: Escribir -> Confirmar
+
+        # --- Sensores y actuadores ---
         tablero_sensor = TableroSensor(env)
         tablero_sensor.agent = self
         self.add_sensor("tablero_sensor", tablero_sensor)
@@ -102,11 +200,31 @@ class SudokuAgent(Agent):
         self.add_actuator("confirmar_actuator", confirmar_actuator)
 
     def print_state(self):
-        print("Estado del tablero: {}".format(self._sensors["tablero_sensor"].sense()))
-        print("Vidas restantes: {}".format(self._sensors["vidas_sensor"].sense()))
-        print("Penalización actual: {}".format(self._sensors["penalizacion_sensor"].sense()))
-        print("Tiempo total: {}".format(self._sensors["tiempo_total_sensor"].sense()))
-        print("Estado de la celda actual: {}".format(self._sensors["estado_celda_sensor"].sense()))
+        tablero = self._sensors["tablero_sensor"].sense()
+        estado_celda = self._sensors["estado_celda_sensor"].sense()
+        vidas = self._sensors["vidas_sensor"].sense()
+        penalizacion = self._sensors["penalizacion_sensor"].sense()
+        tiempo_total = self._sensors["tiempo_total_sensor"].sense()
+
+        print("+-------+-------+-------+")
+        for r in range(9):
+            fila_str = "| "
+            for c in range(9):
+                val = tablero[r][c]
+                char = str(val) if val != 0 else "."
+                fila_str += char + " "
+                if (c + 1) % 3 == 0:
+                    fila_str += "| "
+            print(fila_str)
+            if (r + 1) % 3 == 0:
+                print("+-------+-------+-------+")
+
+        num_confirmadas = len(estado_celda.get("confirmadas", []))
+        num_borradores = len(estado_celda.get("borradores", []))
+        num_pistas = len(estado_celda.get("pistas", []))
+
+        print(f"Vidas restantes: {vidas} | Penalización acumulada: {penalizacion}s | Tiempo total: {tiempo_total:.4f}s")
+        print(f"Pistas iniciales: {num_pistas} | Confirmadas: {num_confirmadas} | Borradores activos: {num_borradores}")
 
     def _perceive(self):
         percept = {}
@@ -131,4 +249,25 @@ class SudokuAgent(Agent):
     def behave(self):
         percept = self._perceive()
         self._act(percept)
+
+
+if __name__ == "__main__":
+    from sudokuworld import EntornoSudoku
+    print("--- SIMULACIÓN DE PRUEBA: SUDOKU AGENT ---")
+    env = EntornoSudoku()
+    agent = SudokuAgent(env)
+
+    print("\nEstado inicial del tablero:")
+    agent.print_state()
+
+    print("\nEjecutando pasos del agente...")
+    for i in range(100):
+        agent.behave()
+        if i % 20 == 0:
+            print(f"\n--- Paso {i} ---")
+            agent.print_state()
+
+    print("\n--- Estado Final tras 100 pasos ---")
+    agent.print_state()
+
 

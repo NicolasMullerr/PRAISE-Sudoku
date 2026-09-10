@@ -1,46 +1,32 @@
-from renderers import NullRenderer
-from statebuffer import StateBuffer
-from vacuumrenderers import ConsoleRenderer, PyGameRenderer
-from vacuumworld import VacuumEnvironment
-from vacuumagent import VacuumAgent, MoveDirection
-import threading
+import time
+from sudokuworld import EntornoSudoku
+from sudokuagent import SudokuAgent
 
-agent_finished_flag = False
-event_render_ready = threading.Event()
+def main():
+    print("==================================================")
+    print("     INICIANDO PRAISE-Sudoku - SIMULACIÓN         ")
+    print("==================================================")
 
-def agent_thread(agent):
-    global agent_finished_flag
-    for _ in range(10):
-        agent.print_state()
-        event_render_ready.wait(timeout=0.1)
+    # 1. Instanciamos el entorno y el agente de Sudoku
+    env = EntornoSudoku()
+    agent = SudokuAgent(env)
+
+    print(f"\nID del Agente: {agent.id}")
+    print("\n--- ESTADO INICIAL DEL TABLERO ---")
+    agent.print_state()
+
+    print("\n--- EJECUTANDO ACCIONES DEL AGENTE ---")
+    pasos = 50
+    for i in range(1, pasos + 1):
         agent.behave()
-        event_render_ready.clear()
-    agent_finished_flag = True
+        if i % 10 == 0 or i == 1:
+            print(f"\n[Paso {i}/{pasos}]")
+            agent.print_state()
 
-def render_thread(renderer):
-    while not agent_finished_flag:
-        renderer.render()
-        event_render_ready.set()
-
-
+    print("\n==================================================")
+    print("--- ESTADO FINAL TRAS LA SIMULACIÓN ---")
+    agent.print_state()
+    print("==================================================")
 
 if __name__ == '__main__':
-    env = VacuumEnvironment(3, True)
-    agent = VacuumAgent(env)
-    renderer = ConsoleRenderer()
-
-    statebuffer = StateBuffer(agent.id, env)
-    renderer.observe(statebuffer=statebuffer)
-
-    print(agent.id)
-
-    thread_agent = threading.Thread(target=agent_thread, args=(agent,))
-    thread_renderer = threading.Thread(target=render_thread, args=(renderer,))
-
-    thread_renderer.start()
-    thread_agent.start()
-
-    thread_agent.join()
-    thread_renderer.join()
-
-    agent.print_state()
+    main()
