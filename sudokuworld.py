@@ -21,7 +21,7 @@ class EntornoSudoku(SimulatedEnvironment):
         self.tiempo_inicio = time.time() # Store the start time of the game
 
 
-    def _generar_pistas_iniciales(self):
+    def _generar_pistas_iniciales(self):   # Hay que ver si se puede hacer mas realista, pero por ahora funciona.
         # 1. Llenamos el tablero completamente usando Backtracking
         self._resolver_tablero_backtracking()
         
@@ -39,14 +39,14 @@ class EntornoSudoku(SimulatedEnvironment):
         # Una función rápida (sin usar las listas del agente) para validar 
         # si un número se puede poner durante la generación del tablero.
         for i in range(9):
-            if self.tablero[fila][i] == numero or self.tablero[i][columna] == numero:
-                return False
+            if self.tablero[fila][i] == numero or self.tablero[i][columna] == numero: #Fija primero fila y luego columna para ver si esta el numero
+                return False #Si ya esta el numero en la fila o columna, no es valido
                 
-        f_reg, c_reg = (fila // 3) * 3, (columna // 3) * 3
-        for i in range(3):
+        f_reg, c_reg = (fila // 3) * 3, (columna // 3) * 3 #Para calcular dónde empieza el cuadrante de 3x3 al que pertenece la celda (// Div entera)
+        for i in range(3): # Recorremos las 3 filas y 3 columnas del cuadrante buscando el numero
             for j in range(3):
                 if self.tablero[f_reg + i][c_reg + j] == numero:
-                    return False
+                    return False #Si ya esta el numero en el cuadrante, no es valido
         return True
 
     def _resolver_tablero_backtracking(self):
@@ -126,39 +126,38 @@ class EntornoSudoku(SimulatedEnvironment):
         """
         Sensor del entorno. El agente pide una propiedad por su nombre.
         """
-        if property_name == "tablero":
-            return {"tablero": self.tablero}
-            
-        elif property_name == "vidas":
-            return {"vidas": self.vidas}
-            
-        elif property_name == "penalizacion":
-            return {"tiempo_penalizado": self.total_tiempo_penalizacion}
-        
-        elif property_name == "tiempo_total":
-            # 1. Calculamos el tiempo real de procesamiento
-            tiempo_real_transcurrido = time.time() - self.tiempo_inicio
-            
-            # 2. Le sumamos los castigos acumulados
-            tiempo_total = tiempo_real_transcurrido + self.total_tiempo_penalizacion
-            return {"tiempo_total": tiempo_total}
-            
-        elif property_name == "estado_celda":
-            # Si necesitas que el agente consulte una celda específica, 
-            # podrías requerir que mande coordenadas, pero por ahora 
-            # con devolver el tablero completo y las listas suele bastar.
-            return {
-                "confirmadas": self.posiciones_confirmadas,
-                "borradores": self.posiciones_borrador,
-                "pistas": self.posiciones_pistas
-            }
-            
-        return {} # Retorna diccionario vacío si pide algo que no existe
+        if agent_id not in self._agents:
+            return {} # Agente no registrado
+
+        match property_name:
+            case "tablero":
+                return {"tablero": self.tablero}
+            case "vidas":
+                return {"vidas": self.vidas}
+            case "penalizacion":
+                return {"tiempo_penalizado": self.total_tiempo_penalizacion}
+            case "tiempo_total":
+                # 1. Calculamos el tiempo real de procesamiento
+                tiempo_real_transcurrido = time.time() - self.tiempo_inicio
+                # 2. Le sumamos los castigos acumulados
+                tiempo_total = tiempo_real_transcurrido + self.total_tiempo_penalizacion
+                return {"tiempo_total": tiempo_total}
+            case "estado_celda":
+                return {
+                    "confirmadas": self.posiciones_confirmadas,
+                    "borradores": self.posiciones_borrador,
+                    "pistas": self.posiciones_pistas
+                }
+            case _:
+                return {} # Retorna diccionario vacío si pide algo que no existe
 
     def take_action(self, agent_id: int, action_name: str, params: dict = {}) -> None:
         """
         Actuador del entorno. Ejecuta acciones basadas en el nombre y los parámetros.
         """
+        if agent_id not in self._agents:
+            return # Agente no registrado
+
         # Extraemos los parámetros de forma segura (soportando tanto 'numero' como 'valor')
         fila = params.get("fila")
         columna = params.get("columna")
@@ -170,42 +169,43 @@ class EntornoSudoku(SimulatedEnvironment):
             return
 
         # ENRUTAMIENTO DE ACCIONES
-        if action_name == "escribir":
-            # Guardamos solo la tupla de la coordenada en la lista de borradores si no está ya
-            if coordenada not in self.posiciones_borrador:
-                self.posiciones_borrador.append(coordenada)
-            # El número real va a la matriz matemática
-            self.tablero[fila][columna] = numero
+        match action_name:
+            case "escribir":
+                # Guardamos solo la tupla de la coordenada en la lista de borradores si no está ya
+                if coordenada not in self.posiciones_borrador and coordenada not in self.posiciones_confirmadas and coordenada not in self.posiciones_pistas:
+                    self.posiciones_borrador.append(coordenada)
+                    # El número real va a la matriz matemática
+                    self.tablero[fila][columna] = numero
 
-        elif action_name == "confirmar":
-            # 1. Verificamos que la celda sea un borrador antes de hacer nada
-            if coordenada in self.posiciones_borrador:
-                
-                # 2. Ejecutamos las validaciones
-                falla_fila = self._falla_unicidad_fila(fila, numero)
-                falla_col = self._verificar_unicidad_columna(columna, numero) 
-                falla_reg = self._verificar_unicidad_region(fila, columna, numero)
+            case "confirmar":
+                # 1. Verificamos que la celda sea un borrador antes de hacer nada
+                if coordenada in self.posiciones_borrador:
 
-                # 3. Si NO hay fallas (todas son False), validamos el número
-                if not falla_fila and not falla_col and not falla_reg:
-                    self.posiciones_borrador.remove(coordenada)
-                    self.posiciones_confirmadas.append(coordenada)
-                    
-                # 4. Si ALGUNA regla falló, aplicamos el castigo y limpiamos la celda
-                else:
-                    self.vidas -= 1
-                    self.total_tiempo_penalizacion += self.tiempo_penalizacion
+                    # 2. Ejecutamos las validaciones
+                    falla_fila = self._falla_unicidad_fila(fila, numero)
+                    falla_col = self._verificar_unicidad_columna(columna, numero)
+                    falla_reg = self._verificar_unicidad_region(fila, columna, numero)
+
+                    # 3. Si NO hay fallas (todas son False), validamos el número
+                    if not falla_fila and not falla_col and not falla_reg:
+                        self.posiciones_borrador.remove(coordenada)
+                        self.posiciones_confirmadas.append(coordenada)
+
+                    # 4. Si ALGUNA regla falló, aplicamos el castigo y limpiamos la celda
+                    else:
+                        self.vidas -= 1
+                        self.total_tiempo_penalizacion += self.tiempo_penalizacion
+                        self.posiciones_borrador.remove(coordenada)
+                        self.tablero[fila][columna] = 0
+
+            case "borrar":
+                # Las pistas son intocables: solo borramos si la celda NO es una pista
+                if coordenada not in self.posiciones_pistas:
                     if coordenada in self.posiciones_borrador:
                         self.posiciones_borrador.remove(coordenada)
-                    self.tablero[fila][columna] = 0
-
-        elif action_name == "borrar":
-            # Borramos la celda de borradores o confirmadas y la ponemos en cero en el tablero
-            if coordenada in self.posiciones_borrador:
-                self.posiciones_borrador.remove(coordenada)
-            if coordenada in self.posiciones_confirmadas:
-                self.posiciones_confirmadas.remove(coordenada)
-            self.tablero[fila][columna] = 0  # Reiniciamos la celda a cero
+                    if coordenada in self.posiciones_confirmadas:
+                        self.posiciones_confirmadas.remove(coordenada)
+                    self.tablero[fila][columna] = 0  # Reiniciamos la celda a cero
 
 
 # PRUEBA HARDCODE DEL ENTORNO SUDOKU
