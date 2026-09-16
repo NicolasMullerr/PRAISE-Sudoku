@@ -11,41 +11,70 @@ class EntornoSudoku(SimulatedEnvironment):
         self.tablero = [[0 for _ in range(9)] for _ in range(9)]  # Initialize a 9x9 Sudoku grid with zeros
         self.posiciones_confirmadas = []  # Initialize an empty list to store confirmed positions
         self.posiciones_borrador = []  # Initialize an empty list to store draft positions
-        self.dificultad = "Extrema"  # Initialize difficulty to "Extrema"
+        self.dificultad = "Muy Dificil"  # Initialize difficulty to "Muy Dificil"
         self.vidas = 3  # Initialize lives to 3
-        self.pistas = 17  # Initialize hints to 17
+        self.pistas = 24  # Initialize hints to 24
         self.posiciones_pistas = [] # Initialize an empty list to store hint positions
         self.tiempo_penalizacion = 30 # Initialize time penalty to 30 seconds
         self.total_tiempo_penalizacion = 0 # Initialize the total time penalty to 0 seconds
         self._generar_pistas_iniciales() # Call the method to generate initial hints
         self.tiempo_inicio = time.time() # Store the start time of the game
 
+        ## Cambiamos las pistas a 23 por complejidad matematica 
 
-    def _generar_pistas_iniciales(self):   # Hay que ver si se puede hacer mas realista, pero por ahora funciona.
-        # 1. Llenamos el tablero completamente usando Backtracking
-        self._resolver_tablero_backtracking()
-        
-        # 2. Elegimos 17 posiciones al azar del tablero resuelto
-        todas_las_coordenadas = [(f, c) for f in range(9) for c in range(9)]
-        self.posiciones_pistas = random.sample(todas_las_coordenadas, self.pistas)
-        
-        # 3. Vaciamos todo lo que NO sea una pista
-        for f in range(9):
-            for c in range(9):
-                if (f, c) not in self.posiciones_pistas:
-                    self.tablero[f][c] = 0
 
-    def _es_valido_generacion(self, fila, columna, numero):
+    def _generar_pistas_iniciales(self):
+        # Intentamos generar el tablero hasta conseguir exactamente self.pistas pistas.
+        # 17 pistas es el mínimo teórico: no siempre se alcanza en un solo intento, por eso repetimos desde cero si la pasada termina con más celdas de las deseadas.
+        while True:
+            # 1. Reiniciamos el tablero y lo llenamos completamente con Backtracking
+            self.tablero = [[0 for _ in range(9)] for _ in range(9)]
+            self._resolver_tablero_backtracking()
+
+            # 2. Hacemos una lista con todas las coordenadas y la mezclamos al azar
+            todas_las_coordenadas = [(f, c) for f in range(9) for c in range(9)]
+            random.shuffle(todas_las_coordenadas)  # Mezcla in-place
+
+            # 3. Vamos eliminando celdas de a una, siempre que el puzzle siga siendo único
+            celdas_llenas = 81
+            i = 0  # Índice para recorrer todas_las_coordenadas
+            while celdas_llenas > self.pistas and i < len(todas_las_coordenadas):
+                f, c = todas_las_coordenadas[i]
+                i += 1  # Avanzamos al siguiente candidato en la próxima iteración
+
+                valor_guardado = self.tablero[f][c]  # Guardamos el valor antes de borrarlo
+                self.tablero[f][c] = 0               # Borramos la celda temporalmente
+
+                # Hacemos una copia del tablero para que _contar_soluciones no toque self.tablero
+                copia = [fila[:] for fila in self.tablero]  # 'fila[:]' → copia cada fila como una lista nueva 
+
+                if self._contar_soluciones(copia) == 1:
+                    celdas_llenas -= 1  # El agujero es válido, lo dejamos en 0 y contamos una celda menos
+                else:
+                    self.tablero[f][c] = valor_guardado  # No es único por lo que restauramos el valor
+
+            # 4. Si llegamos exactamente a self.pistas, salimos del while externo
+            if celdas_llenas == self.pistas:
+                break
+            # Si no, volvemos a empezar con un tablero diferente (otro shuffle de backtracking)
+
+        # 5. Las celdas que quedaron con valor son las pistas
+        self.posiciones_pistas = [
+            (f, c) for f in range(9) for c in range(9)
+            if self.tablero[f][c] != 0
+        ]
+
+    def _es_valido_generacion(self, tablero, fila, columna, numero):
         # Una función rápida (sin usar las listas del agente) para validar 
         # si un número se puede poner durante la generación del tablero.
         for i in range(9):
-            if self.tablero[fila][i] == numero or self.tablero[i][columna] == numero: #Fija primero fila y luego columna para ver si esta el numero
+            if tablero[fila][i] == numero or tablero[i][columna] == numero: #Fija primero fila y luego columna para ver si esta el numero
                 return False #Si ya esta el numero en la fila o columna, no es valido
                 
         f_reg, c_reg = (fila // 3) * 3, (columna // 3) * 3 #Para calcular dónde empieza el cuadrante de 3x3 al que pertenece la celda (// Div entera)
         for i in range(3): # Recorremos las 3 filas y 3 columnas del cuadrante buscando el numero
             for j in range(3):
-                if self.tablero[f_reg + i][c_reg + j] == numero:
+                if tablero[f_reg + i][c_reg + j] == numero:
                     return False #Si ya esta el numero en el cuadrante, no es valido
         return True
 
@@ -60,7 +89,7 @@ class EntornoSudoku(SimulatedEnvironment):
                     random.shuffle(numeros)
                     
                     for numero in numeros:
-                        if self._es_valido_generacion(fila, columna, numero):
+                        if self._es_valido_generacion(self.tablero, fila, columna, numero):
                             self.tablero[fila][columna] = numero
                             
                             # Llamada RECURSIVA: intentamos resolver el resto
@@ -73,6 +102,22 @@ class EntornoSudoku(SimulatedEnvironment):
                     return False # Si ningún número funcionó, hay que volver atrás
         return True # Si no hay celdas vacías, ¡el tablero está resuelto!
 
+    def _contar_soluciones(self, tablero, limite=2): 
+        # Buscamos la primera celda vacía
+        for fila in range(9):
+            for columna in range(9):
+                if tablero[fila][columna] == 0:
+                    contador = 0
+                    for numero in range(1, 10):
+                        if self._es_valido_generacion(tablero, fila, columna, numero):  
+                            tablero[fila][columna] = numero
+                            contador += self._contar_soluciones(tablero, limite)  # Cada nivel acumula lo que encontro en los niveles inferiores y lo pasa para el nivel de arriba
+                            tablero[fila][columna] = 0 # Desahcemos el backtrack para probar el siguiente numero y no alterar el tablero original
+                            
+                            if contador >= limite: #Si hay suficientes paramos
+                                return contador
+                    return contador
+        return 1 # Si no hay celdas vacías, encontramos una solución
 
     # --- REGLAS DE UNICIDAD ---
     
@@ -216,11 +261,11 @@ if __name__ == "__main__":
     
     # 1. Instanciamos el entorno (Acá se ejecuta el __init__ y el backtracking)
     mi_entorno = EntornoSudoku()
-    
+    mi_entorno.add(1)
     # 2. Probamos el Sensor: Pedimos el tablero inicial
     tablero_inicial = mi_entorno.get_property(agent_id=1, property_name="tablero")["tablero"]
     
-    print("\nTablero Generado (17 pistas):")
+    print("\nTablero Generado:")
     for fila in tablero_inicial:
         print(fila)
         
