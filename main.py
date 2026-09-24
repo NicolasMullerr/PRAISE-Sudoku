@@ -45,8 +45,9 @@ def ejecutar_partida(tablero_inicial=None, max_pasos=1000, mostrar_progreso=Fals
         pasos_ejecutados = paso
         
         tablero_actual = agent._sensors["tablero_sensor"].sense()
-        # El Sudoku está resuelto cuando no quedan ceros en el tablero
-        if not any(0 in fila for fila in tablero_actual):
+        estado = agent._sensors["estado_celda_sensor"].sense()
+        # El Sudoku está resuelto cuando no quedan ceros en el tablero y no hay borradores pendientes
+        if not any(0 in fila for fila in tablero_actual) and len(estado.get("borradores", [])) == 0:
             resuelto = True
             break
             
