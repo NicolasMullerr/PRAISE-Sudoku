@@ -122,7 +122,11 @@ class SudokuAgent(Agent):
                 if fila_objetivo != -1:
                     break
 
+<<<<<<< HEAD
         # PASO 3: Si recorrimos todo el tablero y no hay ceros, confirmamos los borradores pendientes
+=======
+        # Si recorrimos todo el tablero y no hay ceros, ganamos
+>>>>>>> a5055bf3eb912404a50b98a1911991469fb66682
         if fila_objetivo == -1:
             borradores = estado_celda.get("borradores", [])
             if borradores:
