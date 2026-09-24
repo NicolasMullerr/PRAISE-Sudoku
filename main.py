@@ -13,16 +13,42 @@ def tablero_a_string(tablero):
     """Convierte una matriz 9x9 en un string plano de 81 caracteres."""
     return "".join(str(tablero[f][c]) for f in range(9) for c in range(9))
 
-def guardar_resultado(tablero_str, resuelto, pasos, archivo_resueltos=ARCHIVO_RESUELTOS, archivo_no_resueltos=ARCHIVO_NO_RESUELTOS):
-    """Registra el tablero inicial en el archivo de texto correspondiente."""
+def formatear_sudoku(tablero_str):
+    """Convierte un string de 81 caracteres en un string formateado de 9x9 visual."""
+    res = []
+    res.append("+-------+-------+-------+")
+    for r in range(9):
+        row = ""
+        for c in range(9):
+            if c % 3 == 0:
+                row += "| "
+            val = tablero_str[r*9 + c]
+            row += (val if val != '0' else '.') + " "
+        row += "|"
+        res.append(row)
+        if (r + 1) % 3 == 0:
+            res.append("+-------+-------+-------+")
+    return "\n".join(res)
+
+def guardar_resultado(tablero_inicial_str, tablero_agente_str, tablero_resuelto_str, resuelto, pasos, archivo_resueltos=ARCHIVO_RESUELTOS, archivo_no_resueltos=ARCHIVO_NO_RESUELTOS):
+    """Registra los resultados en el archivo de texto correspondiente."""
     archivo_destino = archivo_resueltos if resuelto else archivo_no_resueltos
     modo = "a" if os.path.exists(archivo_destino) else "w"
     
     with open(archivo_destino, modo, encoding="utf-8") as f:
-        if resuelto:
-            f.write(f"{tablero_str} | Pasos: {pasos}\n")
-        else:
-            f.write(f"{tablero_str} | No resuelto (límite de {pasos} pasos alcanzado)\n")
+        f.write("==================================================\n")
+        estado_str = "Resuelto" if resuelto else f"No resuelto (límite de {pasos} pasos alcanzado)"
+        f.write(f"Resultado: {estado_str} | Pasos: {pasos}\n\n")
+        
+        f.write("Sudoku Inicial:\n")
+        f.write(formatear_sudoku(tablero_inicial_str) + "\n\n")
+        
+        f.write("Resultado del Agente:\n")
+        f.write(formatear_sudoku(tablero_agente_str) + "\n\n")
+        
+        f.write("Sudoku Resuelto:\n")
+        f.write(formatear_sudoku(tablero_resuelto_str) + "\n")
+        f.write("==================================================\n\n")
 
 def ejecutar_partida(tablero_inicial=None, max_pasos=MAX_PASOS_DEFAULT, saltos=SALTOS_DEFAULT):
     """
@@ -34,6 +60,11 @@ def ejecutar_partida(tablero_inicial=None, max_pasos=MAX_PASOS_DEFAULT, saltos=S
     
     # Obtenemos la representación del tablero inicial (las pistas antes de empezar a jugar)
     tablero_inicial_str = tablero_a_string(env.tablero)
+    
+    # Resolver para obtener el tablero resuelto
+    env_solved = EntornoSudoku(tablero_inicial=tablero_inicial_str)
+    env_solved._resolver_tablero_backtracking()
+    tablero_resuelto_str = tablero_a_string(env_solved.tablero)
     
     resuelto = False
     pasos_ejecutados = 0
@@ -55,15 +86,17 @@ def ejecutar_partida(tablero_inicial=None, max_pasos=MAX_PASOS_DEFAULT, saltos=S
             break
             
         if saltos > 0 and (paso % saltos == 0 or paso == 1):
-            print(f"\\n[Paso {paso}/{max_pasos}]")
+            print(f"\n[Paso {paso}/{max_pasos}]")
             agent.print_state()
             
     # Mostrar el estado final si no se mostró en el último paso
     if saltos > 0 and pasos_ejecutados % saltos != 0:
-        print(f"\\n[Paso Final {pasos_ejecutados}/{max_pasos}]")
+        print(f"\n[Paso Final {pasos_ejecutados}/{max_pasos}]")
         agent.print_state()
         
-    return resuelto, pasos_ejecutados, tablero_inicial_str, agent
+    tablero_agente_str = tablero_a_string(agent._sensors["tablero_sensor"].sense())
+        
+    return resuelto, pasos_ejecutados, tablero_inicial_str, tablero_agente_str, tablero_resuelto_str, agent
 
 def main():
     if len(sys.argv) > 1 and sys.argv[1] in ("-h", "--help"):
@@ -99,12 +132,12 @@ def main():
     print("==================================================")
 
     t0 = time.time()
-    resuelto, pasos, tablero_str, agent = ejecutar_partida(tablero_inicial=fuente, max_pasos=max_pasos, saltos=saltos)
+    resuelto, pasos, tab_ini_str, tab_ag_str, tab_res_str, agent = ejecutar_partida(tablero_inicial=fuente, max_pasos=max_pasos, saltos=saltos)
     duracion = time.time() - t0
 
-    guardar_resultado(tablero_str, resuelto, pasos)
+    guardar_resultado(tab_ini_str, tab_ag_str, tab_res_str, resuelto, pasos)
 
-    print("\\n==================================================")
+    print("\n==================================================")
     print("               RESUMEN DE RESULTADOS              ")
     print("==================================================")
     if resuelto:
