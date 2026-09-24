@@ -9,12 +9,10 @@ ARCHIVO_NO_RESUELTOS = "sudokus_no_resueltos_1000.txt"
 MAX_PASOS_DEFAULT = 1000
 
 
-def tablero_a_string(tablero):
-    """Convierte una matriz 9x9 en un string plano de 81 caracteres."""
+def tablero_a_string(tablero): # Convierte un tablero de Sudoku (lista de listas) en un string de 81 caracteres.  
     return "".join(str(tablero[f][c]) for f in range(9) for c in range(9))
 
-def formatear_sudoku(tablero_str):
-    """Convierte un string de 81 caracteres en un string formateado de 9x9 visual."""
+def formatear_sudoku(tablero_str): # Convierte un string de 81 caracteres en un string formateado de 9x9 visual.    
     res = []
     res.append("+-------+-------+-------+")
     for r in range(9):
@@ -31,7 +29,7 @@ def formatear_sudoku(tablero_str):
     return "\n".join(res)
 
 def guardar_resultado(tablero_inicial_str, tablero_agente_str, tablero_resuelto_str, resuelto, pasos, archivo_resueltos=ARCHIVO_RESUELTOS, archivo_no_resueltos=ARCHIVO_NO_RESUELTOS):
-    """Registra los resultados en el archivo de texto correspondiente."""
+    # Registra los resultados en el archivo de texto correspondiente. 
     archivo_destino = archivo_resueltos if resuelto else archivo_no_resueltos
     modo = "a" if os.path.exists(archivo_destino) else "w"
     
@@ -50,7 +48,7 @@ def guardar_resultado(tablero_inicial_str, tablero_agente_str, tablero_resuelto_
         f.write(formatear_sudoku(tablero_resuelto_str) + "\n")
         f.write("==================================================\n\n")
 
-def ejecutar_partida(tablero_inicial=None, max_pasos=1000, mostrar_progreso=False):
+def ejecutar_partida(tablero_inicial=None, max_pasos=MAX_PASOS_DEFAULT, saltos=SALTOS_DEFAULT):
     """
     Ejecuta una simulación completa de un agente resolviendo un Sudoku.
     Determina si fue resuelto en max_pasos o menos.
@@ -89,14 +87,42 @@ def ejecutar_partida(tablero_inicial=None, max_pasos=1000, mostrar_progreso=Fals
             print(f"\n[Paso {paso}/{max_pasos}]")
             agent.print_state()
             
-    return resuelto, pasos_ejecutados, tablero_inicial_str, agent
+    # Mostrar el estado final si no se mostró en el último paso
+    if saltos > 0 and pasos_ejecutados % saltos != 0:
+        print(f"\n[Paso Final {pasos_ejecutados}/{max_pasos}]")
+        agent.print_state()
+        
+    tablero_agente_str = tablero_a_string(agent._sensors["tablero_sensor"].sense())
+        
+    return resuelto, pasos_ejecutados, tablero_inicial_str, tablero_agente_str, tablero_resuelto_str, agent
 
+def main():
+    if len(sys.argv) > 1 and sys.argv[1] in ("-h", "--help"):
+        print("Uso:")
+        print("  python main.py                         # Ejecuta 1 partida con parámetros por defecto")
+        print("  python main.py <max_pasos>             # Ejecuta 1 partida especificando máximo de pasos")
+        print("  python main.py <max_pasos> <saltos>    # Especifica máximo de pasos y cada cuántos se muestra el tablero")
+        print("  python main.py --cargar <fuente>       # Prueba un tablero específico (string o ruta .txt)")
+        return
 
-def clasificar_lote_sudokus(n_partidas=10, max_pasos=1000):
-    """
-    Ejecuta un lote de partidas con tableros aleatorios y los clasifica
-    en los dos archivos de texto según si se resuelven en max_pasos o menos.
-    """
+    fuente = None
+    max_pasos = MAX_PASOS_DEFAULT
+    saltos = SALTOS_DEFAULT
+
+    if len(sys.argv) > 1 and sys.argv[1] == "--cargar":
+        if len(sys.argv) > 2:
+            fuente = sys.argv[2]
+            print(f"Cargando tablero desde: {fuente}")
+            if len(sys.argv) > 3 and sys.argv[3].isdigit():
+                max_pasos = int(sys.argv[3])
+            if len(sys.argv) > 4 and sys.argv[4].isdigit():
+                saltos = int(sys.argv[4])
+    else:
+        if len(sys.argv) > 1 and sys.argv[1].isdigit():
+            max_pasos = int(sys.argv[1])
+        if len(sys.argv) > 2 and sys.argv[2].isdigit():
+            saltos = int(sys.argv[2])
+
     print("==================================================")
     print(" INICIANDO EJECUCIÓN DE SUDOKU")
     print(f" Límite por partida: {max_pasos} pasos")
