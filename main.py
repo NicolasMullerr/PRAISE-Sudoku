@@ -9,12 +9,10 @@ ARCHIVO_NO_RESUELTOS = "sudokus_no_resueltos.txt"
 MAX_PASOS_DEFAULT = 20000
 SALTOS_DEFAULT = 10000
 
-def tablero_a_string(tablero):
-    """Convierte una matriz 9x9 en un string plano de 81 caracteres."""
+def tablero_a_string(tablero): # Convierte un tablero de Sudoku (lista de listas) en un string de 81 caracteres.  
     return "".join(str(tablero[f][c]) for f in range(9) for c in range(9))
 
-def formatear_sudoku(tablero_str):
-    """Convierte un string de 81 caracteres en un string formateado de 9x9 visual."""
+def formatear_sudoku(tablero_str): # Convierte un string de 81 caracteres en un string formateado de 9x9 visual.    
     res = []
     res.append("+-------+-------+-------+")
     for r in range(9):
@@ -31,7 +29,7 @@ def formatear_sudoku(tablero_str):
     return "\n".join(res)
 
 def guardar_resultado(tablero_inicial_str, tablero_agente_str, tablero_resuelto_str, resuelto, pasos, archivo_resueltos=ARCHIVO_RESUELTOS, archivo_no_resueltos=ARCHIVO_NO_RESUELTOS):
-    """Registra los resultados en el archivo de texto correspondiente."""
+    # Registra los resultados en el archivo de texto correspondiente. 
     archivo_destino = archivo_resueltos if resuelto else archivo_no_resueltos
     modo = "a" if os.path.exists(archivo_destino) else "w"
     
@@ -51,10 +49,7 @@ def guardar_resultado(tablero_inicial_str, tablero_agente_str, tablero_resuelto_
         f.write("==================================================\n\n")
 
 def ejecutar_partida(tablero_inicial=None, max_pasos=MAX_PASOS_DEFAULT, saltos=SALTOS_DEFAULT):
-    """
-    Ejecuta una simulación completa de un agente resolviendo un Sudoku.
-    Determina si fue resuelto en max_pasos o menos.
-    """
+    #    Ejecuta una simulación completa de un agente resolviendo un Sudoku. Determina si fue resuelto en max_pasos o menos.
     env = EntornoSudoku(tablero_inicial=tablero_inicial)
     agent = SudokuAgent(env)
     
@@ -105,13 +100,20 @@ def main():
         print("  python main.py <max_pasos>             # Ejecuta 1 partida especificando máximo de pasos")
         print("  python main.py <max_pasos> <saltos>    # Especifica máximo de pasos y cada cuántos se muestra el tablero")
         print("  python main.py --cargar <fuente>       # Prueba un tablero específico (string o ruta .txt)")
+        print("  python main.py --interactivo           # Permite ingresar el tablero de Sudoku a mano en la consola")
         return
 
     fuente = None
     max_pasos = MAX_PASOS_DEFAULT
     saltos = SALTOS_DEFAULT
 
-    if len(sys.argv) > 1 and sys.argv[1] == "--cargar":
+    if len(sys.argv) > 1 and sys.argv[1] == "--interactivo":
+        fuente = "interactivo"
+        if len(sys.argv) > 2 and sys.argv[2].isdigit():
+            max_pasos = int(sys.argv[2])
+        if len(sys.argv) > 3 and sys.argv[3].isdigit():
+            saltos = int(sys.argv[3])
+    elif len(sys.argv) > 1 and sys.argv[1] == "--cargar":
         if len(sys.argv) > 2:
             fuente = sys.argv[2]
             print(f"Cargando tablero desde: {fuente}")

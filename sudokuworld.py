@@ -18,11 +18,23 @@ class EntornoSudoku(SimulatedEnvironment):
         self.posiciones_pistas = [] # Initialize an empty list to store hint positions
         self.tiempo_penalizacion = 30 # Initialize time penalty to 30 seconds
         self.total_tiempo_penalizacion = 0 # Initialize the total time penalty to 0 seconds
-        if tablero_inicial is not None:
+        if tablero_inicial == "interactivo":
+            self.elegir_construccion_tablero()
+        elif tablero_inicial is not None:
             self._cargar_tablero(tablero_inicial)
         else:
             self._generar_pistas_iniciales() # Call the method to generate initial hints
         self.tiempo_inicio = time.time() # Store the start time of the game
+
+    def elegir_construccion_tablero(self):
+        print("¿Deseas ingresar el tablero de Sudoku a mano? (s/n)")
+        opcion = input("> ").strip().lower()
+        if opcion == 's':
+            print("Por favor, ingresa los 81 dígitos del Sudoku (usa '0' o '.' para espacios vacíos):")
+            cadena = input("> ").strip()
+            self._cargar_tablero(cadena)
+        else:
+            self._generar_pistas_iniciales()
 
     def _cargar_tablero(self, fuente):
         """Carga un tablero inicial desde una ruta de archivo (.txt), un string de 81 caracteres o una matriz 9x9."""
