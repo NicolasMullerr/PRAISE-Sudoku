@@ -6,8 +6,8 @@ from sudokuagent import SudokuAgent
 
 ARCHIVO_RESUELTOS = "sudokus_resueltos.txt"
 ARCHIVO_NO_RESUELTOS = "sudokus_no_resueltos.txt"
-MAX_PASOS_DEFAULT = 10000
-SALTOS_DEFAULT = 100
+MAX_PASOS_DEFAULT = 20000
+SALTOS_DEFAULT = 10000
 
 def tablero_a_string(tablero):
     """Convierte una matriz 9x9 en un string plano de 81 caracteres."""

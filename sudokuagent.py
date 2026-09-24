@@ -127,7 +127,7 @@ class SudokuAgent(Agent):
                 if fila_objetivo != -1:
                     break
 
-        # Si recorrimos todo el tablero y no hay ceros, ¡ganamos!
+        # Si recorrimos todo el tablero y no hay ceros, ganamos
         if fila_objetivo == -1:
              print("\n¡El Agente ha resuelto el Sudoku exitosamente!")
              action["name"] = "esperar" # Acción neutra
