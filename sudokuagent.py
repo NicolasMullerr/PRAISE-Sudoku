@@ -74,15 +74,10 @@ class SudokuAgent(Agent):
 
     def function(self, percept):
         tablero = percept["tablero_sensor"]
+        estado_celda = percept["estado_celda_sensor"]
         action = {}
 
-        # PASO 1: Si dejamos una confirmación pendiente en el turno anterior, la ejecutamos
-        if self.accion_pendiente:
-            action = self.accion_pendiente
-            self.accion_pendiente = None
-            return action
-
-        # PASO 2: Si chocamos con un callejón sin salida y hay que retroceder (Backtracking)
+        # PASO 1: Si chocamos con un callejón sin salida y hay que retroceder (Backtracking)
         if self.modo_retroceso:
             if not self.historial_movimientos:
                 print("El tablero no tiene solución posible.")
@@ -103,12 +98,12 @@ class SudokuAgent(Agent):
                 self.celda_actual_retroceso = None
                 self.modo_retroceso = True
             
-            # Le pedimos al entorno que borre el número equivocado
+            # Le pedimos al entorno que borre el borrador equivocado (nunca una confirmada)
             action["name"] = "borrar"
             action["params"] = {"fila": ultima_fila, "columna": ultima_col}
             return action
 
-        # PASO 3: Buscar en qué celda vamos a trabajar
+        # PASO 2: Buscar en qué celda vamos a trabajar
         fila_objetivo, col_objetivo = -1, -1
         
         if self.celda_actual_retroceso:
@@ -127,25 +122,28 @@ class SudokuAgent(Agent):
                 if fila_objetivo != -1:
                     break
 
-        # Si recorrimos todo el tablero y no hay ceros, ¡ganamos!
+        # PASO 3: Si recorrimos todo el tablero y no hay ceros, confirmamos los borradores pendientes
         if fila_objetivo == -1:
-             print("\n¡El Agente ha resuelto el Sudoku exitosamente!")
-             action["name"] = "esperar" # Acción neutra
-             return action
+            borradores = estado_celda.get("borradores", [])
+            if borradores:
+                # Tomamos el primer borrador y procedemos a confirmarlo formalmente
+                f_conf, c_conf = borradores[0]
+                val_conf = tablero[f_conf][c_conf]
+                action["name"] = "confirmar"
+                action["params"] = {"fila": f_conf, "columna": c_conf, "valor": val_conf}
+                return action
+            else:
+                print("\n¡El Agente ha resuelto y confirmado el Sudoku exitosamente!")
+                action["name"] = "esperar" # Acción neutra
+                return action
 
-        # PASO 4: Pensar y actuar (Probar números válidos)
+        # PASO 4: Pensar y actuar (Probar números válidos en borrador)
         for numero in range(inicio_rango, 10):
             if self._es_valido(tablero, fila_objetivo, col_objetivo, numero):
                 # Anotamos en memoria que vamos a probar este número
                 self.historial_movimientos.append((fila_objetivo, col_objetivo, numero))
                 
-                # Programamos la confirmación para el SIGUIENTE turno
-                self.accion_pendiente = {
-                    "name": "confirmar",
-                    "params": {"fila": fila_objetivo, "columna": col_objetivo, "valor": numero}
-                }
-                
-                # Y en ESTE turno mandamos a escribir en borrador
+                # Escribimos exclusivamente en borrador (sin confirmar prematuramente)
                 action["name"] = "escribir"
                 action["params"] = {"fila": fila_objetivo, "columna": col_objetivo, "valor": numero}
                 return action
@@ -164,7 +162,6 @@ class SudokuAgent(Agent):
         self.modo_retroceso = False     # Bandera para saber si estamos deshaciendo un camino sin salida
         self.celda_actual_retroceso = None
         self.siguiente_numero_a_probar = 1
-        self.accion_pendiente = None    # Para manejar el ciclo de 2 pasos: Escribir -> Confirmar
 
         # --- Sensores y actuadores ---
         tablero_sensor = TableroSensor(env)

@@ -4,9 +4,9 @@ import sys
 from sudokuworld import EntornoSudoku
 from sudokuagent import SudokuAgent
 
-ARCHIVO_RESUELTOS = "sudokus_resueltos_1000.txt"
-ARCHIVO_NO_RESUELTOS = "sudokus_no_resueltos_1000.txt"
-MAX_PASOS_DEFAULT = 1000
+ARCHIVO_RESUELTOS = "sudokus_resueltos.txt"
+ARCHIVO_NO_RESUELTOS = "sudokus_no_resueltos.txt"
+MAX_PASOS_DEFAULT = 10000
 
 
 def tablero_a_string(tablero):
@@ -26,7 +26,7 @@ def guardar_resultado(tablero_str, resuelto, pasos, archivo_resueltos=ARCHIVO_RE
             f.write(f"{tablero_str} | No resuelto (límite de {pasos} pasos alcanzado)\n")
 
 
-def ejecutar_partida(tablero_inicial=None, max_pasos=1000, mostrar_progreso=False):
+def ejecutar_partida(tablero_inicial=None, max_pasos=10000, mostrar_progreso=False):
     """
     Ejecuta una simulación completa de un agente resolviendo un Sudoku.
     Determina si fue resuelto en max_pasos o menos.
@@ -63,7 +63,7 @@ def ejecutar_partida(tablero_inicial=None, max_pasos=1000, mostrar_progreso=Fals
     return resuelto, pasos_ejecutados, tablero_inicial_str, agent
 
 
-def clasificar_lote_sudokus(n_partidas=10, max_pasos=1000):
+def clasificar_lote_sudokus(n_partidas=10, max_pasos=10000):
     """
     Ejecuta un lote de partidas con tableros aleatorios y los clasifica
     en los dos archivos de texto según si se resuelven en max_pasos o menos.
