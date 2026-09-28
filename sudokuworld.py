@@ -37,7 +37,7 @@ class EntornoSudoku(SimulatedEnvironment):
             self._generar_pistas_iniciales()
 
     def _cargar_tablero(self, fuente):
-        """Carga un tablero inicial desde una ruta de archivo (.txt), un string de 81 caracteres o una matriz 9x9."""
+        #Carga un tablero inicial desde una ruta de archivo (.txt), un string de 81 caracteres o una matriz 9x9.
         contenido = ""
         if isinstance(fuente, str) and (os.path.isfile(fuente) or fuente.strip().endswith('.txt')):
             with open(fuente, 'r', encoding='utf-8') as f:
@@ -168,6 +168,12 @@ class EntornoSudoku(SimulatedEnvironment):
                                 return contador
                     return contador
         return 1 # Si no hay celdas vacías, encontramos una solución
+
+    # [1   2]
+    # [2   1]
+
+    # [2   1]
+    # [1   2]
 
     # --- REGLAS DE UNICIDAD ---
     
@@ -301,6 +307,19 @@ class EntornoSudoku(SimulatedEnvironment):
                     if coordenada in self.posiciones_confirmadas:
                         self.posiciones_confirmadas.remove(coordenada)
                     self.tablero[fila][columna] = 0  # Reiniciamos la celda a cero
+        estado_actual = {
+        "tablero": self.tablero,
+        "vidas": self.vidas,
+        "penalizacion": self.total_tiempo_penalizacion,
+        "tiempo_total": (time.time() - self.tiempo_inicio) + self.total_tiempo_penalizacion,
+        "estado_celda": {
+            "confirmadas": self.posiciones_confirmadas,
+            "borradores": self.posiciones_borrador,
+            "pistas": self.posiciones_pistas
+        }
+    }
+        for item in self._statebuffers:
+           item["statebuffer"].update(estado_actual)
 
 
 # PRUEBA HARDCODE DEL ENTORNO SUDOKU
