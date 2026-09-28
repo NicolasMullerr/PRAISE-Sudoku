@@ -196,33 +196,6 @@ class SudokuAgent(Agent):
         confirmar_actuator.agent = self
         self.add_actuator("confirmar_actuator", confirmar_actuator)
 
-    def print_state(self):
-        tablero = self._sensors["tablero_sensor"].sense()
-        estado_celda = self._sensors["estado_celda_sensor"].sense()
-        vidas = self._sensors["vidas_sensor"].sense()
-        penalizacion = self._sensors["penalizacion_sensor"].sense()
-        tiempo_total = self._sensors["tiempo_total_sensor"].sense()
-
-        print("+-------+-------+-------+")
-        for r in range(9):
-            fila_str = "| "
-            for c in range(9):
-                val = tablero[r][c]
-                char = str(val) if val != 0 else "."
-                fila_str += char + " "
-                if (c + 1) % 3 == 0:
-                    fila_str += "| "
-            print(fila_str)
-            if (r + 1) % 3 == 0:
-                print("+-------+-------+-------+")
-
-        num_confirmadas = len(estado_celda.get("confirmadas", []))
-        num_borradores = len(estado_celda.get("borradores", []))
-        num_pistas = len(estado_celda.get("pistas", []))
-
-        print(f"Vidas restantes: {vidas} | Penalización acumulada: {penalizacion}s | Tiempo total: {tiempo_total:.4f}s")
-        print(f"Pistas iniciales: {num_pistas} | Confirmadas: {num_confirmadas} | Borradores activos: {num_borradores}")
-
     def _perceive(self):
         percept = {}
         for sensor in self._sensors:
