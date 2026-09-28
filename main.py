@@ -3,30 +3,13 @@ import os
 import sys
 from sudokuworld import EntornoSudoku
 from sudokuagent import SudokuAgent
+from sudokurenderers import ConsoleRenderer, tablero_a_string, formatear_sudoku
+from statebuffer import StateBuffer
 
 ARCHIVO_RESUELTOS = "sudokus_resueltos.txt"
 ARCHIVO_NO_RESUELTOS = "sudokus_no_resueltos.txt"
 MAX_PASOS_DEFAULT = 20000
 SALTOS_DEFAULT = 10000
-
-def tablero_a_string(tablero): # Convierte un tablero de Sudoku (lista de listas) en un string de 81 caracteres.  
-    return "".join(str(tablero[f][c]) for f in range(9) for c in range(9))
-
-def formatear_sudoku(tablero_str): # Convierte un string de 81 caracteres en un string formateado de 9x9 visual.    
-    res = []
-    res.append("+-------+-------+-------+")
-    for r in range(9):
-        row = ""
-        for c in range(9):
-            if c % 3 == 0:
-                row += "| "
-            val = tablero_str[r*9 + c]
-            row += (val if val != '0' else '.') + " "
-        row += "|"
-        res.append(row)
-        if (r + 1) % 3 == 0:
-            res.append("+-------+-------+-------+")
-    return "\n".join(res)
 
 def guardar_resultado(tablero_inicial_str, tablero_agente_str, tablero_resuelto_str, resuelto, pasos, archivo_resueltos=ARCHIVO_RESUELTOS, archivo_no_resueltos=ARCHIVO_NO_RESUELTOS):
     # Registra los resultados en el archivo de texto correspondiente. 
@@ -53,6 +36,9 @@ def ejecutar_partida(tablero_inicial=None, max_pasos=MAX_PASOS_DEFAULT, saltos=S
     #    Ejecuta una simulación completa de un agente resolviendo un Sudoku. Determina si fue resuelto en max_pasos o menos.
     env = EntornoSudoku(tablero_inicial=tablero_inicial)
     agent = SudokuAgent(env)
+    renderer = ConsoleRenderer()
+    buffer = StateBuffer(agent.id, env)
+    renderer.observe(buffer)
     
     # Obtenemos la representación del tablero inicial (las pistas antes de empezar a jugar)
     tablero_inicial_str = tablero_a_string(env.tablero)
@@ -64,6 +50,10 @@ def ejecutar_partida(tablero_inicial=None, max_pasos=MAX_PASOS_DEFAULT, saltos=S
     
     resuelto = False
     pasos_ejecutados = 0
+
+    if saltos > 0:
+            print("\n[Tablero Inicial]")
+            renderer.render()
     
     for paso in range(1, max_pasos + 1):
         agent.behave()
@@ -80,15 +70,15 @@ def ejecutar_partida(tablero_inicial=None, max_pasos=MAX_PASOS_DEFAULT, saltos=S
         vidas = agent._sensors["vidas_sensor"].sense()
         if vidas <= 0:
             break
-            
+
         if saltos > 0 and (paso % saltos == 0 or paso == 1):
             print(f"\n[Paso {paso}/{max_pasos}]")
-            agent.print_state()
+            renderer.render()
             
     # Mostrar el estado final si no se mostró en el último paso
     if saltos > 0 and pasos_ejecutados % saltos != 0:
         print(f"\n[Paso Final {pasos_ejecutados}/{max_pasos}]")
-        agent.print_state()
+        renderer.render()
         
     tablero_agente_str = tablero_a_string(agent._sensors["tablero_sensor"].sense())
         
@@ -96,6 +86,7 @@ def ejecutar_partida(tablero_inicial=None, max_pasos=MAX_PASOS_DEFAULT, saltos=S
 
 def main():
     if len(sys.argv) > 1 and sys.argv[1] in ("-h", "--help"):
+        # Hay que ingresar los tableros como strings de 81 caracteres
         print("Uso:")
         print("  python main.py                         # Ejecuta 1 partida con parámetros por defecto")
         print("  python main.py <max_pasos>             # Ejecuta 1 partida especificando máximo de pasos")
