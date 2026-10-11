@@ -1,3 +1,5 @@
+import threading
+import time
 from environments import SimulatedSensor, SimulatedActuator, SimulatedEnvironment
 from agents import Agent
 from random import randrange
@@ -154,6 +156,7 @@ class SudokuAgent(Agent):
 
     def __init__(self, env: SimulatedEnvironment):
         super().__init__()
+        self._stop_event = threading.Event()
         env.add(self.id)
 
         # --- Variables de memoria para el Backtracking y la búsqueda de soluciones ---
@@ -202,7 +205,7 @@ class SudokuAgent(Agent):
             percept[sensor] = self._sensors[sensor].sense()
         return percept
     
-    def _act(self, percept):
+    def _act(self, percept) -> bool:
         action = self.function(percept)
 
         action_actuators = {
@@ -215,10 +218,37 @@ class SudokuAgent(Agent):
         if actuator:
             args = [action["params"].get(param) for param in expected_params]
             actuator.act(*args)
+
+        # Retorna True cuando la acción es "esperar" (puzzle resuelto o sin solución)
+        return action.get("name") == "esperar"
         
     def behave(self):
         percept = self._perceive()
-        self._act(percept)
+        if percept.get("vidas_sensor", 3) <= 0:
+            self.stop()
+            return
+        finished = self._act(percept)
+        if finished:
+            self.stop()
+
+    def print_state(self):
+        tablero = self._sensors["tablero_sensor"].sense()
+        for fila in tablero:
+            print(" ".join(str(n) if n != 0 else "." for n in fila))
+
+    def stop(self):
+        """Señaliza al hilo del agente que debe detenerse."""
+        self._stop_event.set()
+
+    def is_stopped(self) -> bool:
+        return self._stop_event.is_set()
+
+    def run(self, delay: float = 0.0):
+        """Loop de ejecución del agente para correr dentro de un Thread."""
+        while not self._stop_event.is_set():
+            self.behave()
+            if delay > 0:
+                time.sleep(delay)
 
 
 if __name__ == "__main__":

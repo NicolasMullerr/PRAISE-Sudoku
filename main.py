@@ -1,6 +1,7 @@
 import time
 import os
 import sys
+import threading
 from sudokuworld import EntornoSudoku
 from sudokuagent import SudokuAgent
 from sudokurenderers import ConsoleRenderer, tablero_a_string, formatear_sudoku
@@ -32,8 +33,8 @@ def guardar_resultado(tablero_inicial_str, tablero_agente_str, tablero_resuelto_
         f.write(formatear_sudoku(tablero_resuelto_str) + "\n")
         f.write("==================================================\n\n")
 
-def ejecutar_partida(tablero_inicial=None, max_pasos=MAX_PASOS_DEFAULT, saltos=SALTOS_DEFAULT):
-    #    Ejecuta una simulación completa de un agente resolviendo un Sudoku. Determina si fue resuelto en max_pasos o menos.
+def ejecutar_partida(tablero_inicial=None, max_pasos=MAX_PASOS_DEFAULT, saltos=SALTOS_DEFAULT, agent_delay=0.0):
+    # Ejecuta una simulación de un agente resolviendo un Sudoku en un hilo concurrente.
     env = EntornoSudoku(tablero_inicial=tablero_inicial)
     agent = SudokuAgent(env)
     renderer = ConsoleRenderer()
@@ -48,39 +49,53 @@ def ejecutar_partida(tablero_inicial=None, max_pasos=MAX_PASOS_DEFAULT, saltos=S
     env_solved._resolver_tablero_backtracking()
     tablero_resuelto_str = tablero_a_string(env_solved.tablero)
     
-    resuelto = False
-    pasos_ejecutados = 0
-
     if saltos > 0:
-            print("\n[Tablero Inicial]")
-            renderer.render()
+        print("\n[Tablero Inicial]")
+        renderer.render()
     
-    for paso in range(1, max_pasos + 1):
-        agent.behave()
-        pasos_ejecutados = paso
-        
-        tablero_actual = agent._sensors["tablero_sensor"].sense()
-        estado = agent._sensors["estado_celda_sensor"].sense()
-        # El Sudoku está resuelto cuando no quedan ceros en el tablero y no hay borradores pendientes
-        if not any(0 in fila for fila in tablero_actual) and len(estado.get("borradores", [])) == 0:
-            resuelto = True
-            break
-            
-        # Si el agente se queda sin vidas, finaliza la partida
-        vidas = agent._sensors["vidas_sensor"].sense()
-        if vidas <= 0:
-            break
+    pasos_contador = [0]
+    lock_render = threading.Lock()
 
-        if saltos > 0 and (paso % saltos == 0 or paso == 1):
-            print(f"\n[Paso {paso}/{max_pasos}]")
-            renderer.render()
-            
+    def agent_worker():
+        while not agent.is_stopped() and pasos_contador[0] < max_pasos:
+            agent.behave()
+            pasos_contador[0] += 1
+
+            tablero_actual = agent._sensors["tablero_sensor"].sense()
+            estado = agent._sensors["estado_celda_sensor"].sense()
+            if not any(0 in fila for fila in tablero_actual) and len(estado.get("borradores", [])) == 0:
+                agent.stop()
+                break
+
+            vidas = agent._sensors["vidas_sensor"].sense()
+            if vidas <= 0:
+                agent.stop()
+                break
+
+            if saltos > 0 and (pasos_contador[0] % saltos == 0 or pasos_contador[0] == 1):
+                with lock_render:
+                    print(f"\n[Paso {pasos_contador[0]}/{max_pasos}]")
+                    renderer.render()
+
+            if agent_delay > 0:
+                time.sleep(agent_delay)
+        agent.stop()
+
+    agent_thread = threading.Thread(target=agent_worker, name="AgentThread", daemon=True)
+    agent_thread.start()
+    agent_thread.join()
+
+    pasos_ejecutados = pasos_contador[0]
+    tablero_final = agent._sensors["tablero_sensor"].sense()
+    estado_final = agent._sensors["estado_celda_sensor"].sense()
+    resuelto = not any(0 in fila for fila in tablero_final) and len(estado_final.get("borradores", [])) == 0
+
     # Mostrar el estado final si no se mostró en el último paso
     if saltos > 0 and pasos_ejecutados % saltos != 0:
         print(f"\n[Paso Final {pasos_ejecutados}/{max_pasos}]")
         renderer.render()
         
-    tablero_agente_str = tablero_a_string(agent._sensors["tablero_sensor"].sense())
+    tablero_agente_str = tablero_a_string(tablero_final)
         
     return resuelto, pasos_ejecutados, tablero_inicial_str, tablero_agente_str, tablero_resuelto_str, agent
 
